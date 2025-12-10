@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interface de Chat Flutuante</title>
+    <!-- Carrega Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Estilos customizados */
+        .chat-modal-container {
+            width: 90vw;
+            max-width: 400px;
+            height: 70vh;
+            max-height: 550px;
+            position: fixed;
+            bottom: 6rem; /* Acima do botão flutuante */
+            right: 1rem;
+            transform: scale(0);
+            transform-origin: bottom right;
+            transition: transform 0.3s ease-out;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        .chat-modal-container.open {
+            transform: scale(1);
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background-color: #f7f7f7;
+            /* Scrollbar invisível */
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        .chat-messages::-webkit-scrollbar {
+            display: none; /* Chrome, Safari and Opera */
+        }
+        .user-bubble {
+            background-color: #2563eb;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .bot-bubble {
+            background-color: #ffffff;
+            color: #333;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+        }
+        /* Botão Flutuante */
+        #floatingChatButton {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 1001;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <!-- 1. Botão Flutuante (Icone de Chat no canto inferior direito) -->
+    <div id="floatingChatButton" class="bg-indigo-600 text-white rounded-full p-4 shadow-lg hover:bg-indigo-700 transition duration-300">
+        <i class="fas fa-comment-dots fa-2x"></i>
+    </div>
+
+    <!-- 2. Modal de Chat (Menu Suspenso) -->
+    <div id="chatModal" class="chat-modal-container bg-white rounded-xl overflow-hidden flex flex-col">
+        <!-- Cabeçalho do Chat -->
+        <header class="bg-indigo-600 text-white p-3 flex justify-between items-center">
+            <h1 class="text-lg font-bold">Assistente AMS Crypto</h1>
+            <button id="closeChatButton" class="text-white hover:text-gray-200 transition">
+                <i class="fas fa-times"></i>
+            </button>
+        </header>
+
+        <!-- Área de Mensagens -->
+        <div id="chatMessages" class="chat-messages">
+            <!-- Mensagem inicial do bot -->
+            <div class="flex justify-start mb-4">
+                <div class="bot-bubble rounded-xl p-3 max-w-[80%] shadow-md">
+                    Olá! Sou seu assistente. Posso te ajudar a **comprar**, **vender** ou verificar seu **saldo/cotações**.
+                </div>
+            </div>
+        </div>
+
+        <!-- Formulário de Input -->
+        <div class="p-3 bg-gray-100 border-t border-gray-300">
+            <div id="loadingIndicator" class="text-sm text-center text-indigo-600 mb-2 hidden">
+                ... Aguardando resposta da API ...
+            </div>
+            <form id="chatForm" class="flex">
+                <input type="text" id="userInput" placeholder="Digite seu comando..." 
+                       class="flex-grow p-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-1 focus:ring-indigo-500" required>
+                <button type="submit" 
+                        class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-3 rounded-r-lg transition duration-150">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+            <p class="text-xs text-gray-500 mt-1 text-center">Conectado ao Docker API (porta 5000).</p>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURAÇÃO DE INTEGRAÇÃO (Lógica do chat_component.js) ---
+        const API_URL = "http://localhost:5000/chat"; 
+        const chatModal = document.getElementById('chatModal');
+        const floatingChatButton = document.getElementById('floatingChatButton');
+        const closeChatButton = document.getElementById('closeChatButton');
+
+        const chatForm = document.getElementById('chatForm');
+        const userInput = document.getElementById('userInput');
+        const chatMessagesContainer = document.getElementById('chatMessages');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        // FUNÇÃO DE RENDERIZAÇÃO
+        function renderMessage(sender, text) {
+            const isUser = sender === 'user';
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex mb-3 ${isUser ? 'justify-end' : 'justify-start'}`;
+            
+            const bubbleDiv = document.createElement('div');
+            // Usamos max-w-[80%] do Tailwind para limitar o tamanho
+            bubbleDiv.className = `rounded-xl p-3 max-w-[80%] shadow-md transition duration-300 ${isUser ? 'user-bubble' : 'bot-bubble'}`;
+            bubbleDiv.innerHTML = text.replace(/\n/g, '<br>');
+
+            messageDiv.appendChild(bubbleDiv);
+            chatMessagesContainer.appendChild(messageDiv);
+            
+            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+        }
+
+        // FUNÇÃO DE SUBMISSÃO (LÓGICA DE API)
+        async function handleChatSubmit(event) {
+            event.preventDefault();
+            const message = userInput.value.trim();
+
+            if (message === '') return;
+
+            renderMessage('user', message);
+            userInput.value = '';
+            
+            loadingIndicator.classList.remove('hidden');
+
+            try {
+                // Aqui você adicionaria o token de autenticação, se necessário
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erro de comunicação: ${response.status}. Detalhes: ${errorText.substring(0, 50)}...`);
+                }
+
+                const data = await response.json();
+                
+                const botResponse = data.response || "Desculpe, não obtive resposta.";
+                renderMessage('bot', botResponse);
+
+            } catch (error) {
+                console.error("Erro ao comunicar com a API:", error);
+                renderMessage('bot', `⚠️ ERRO DE CONEXÃO. O servidor do chatbot pode estar offline. (${error.message})`);
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+        
+        // --- LÓGICA DO BOTÃO FLUTUANTE ---
+        
+        function toggleChat() {
+            chatModal.classList.toggle('open');
+            // Foca no campo de input ao abrir
+            if (chatModal.classList.contains('open')) {
+                userInput.focus();
+            }
+        }
+
+        // Associa os eventos
+        floatingChatButton.addEventListener('click', toggleChat);
+        closeChatButton.addEventListener('click', toggleChat);
+        chatForm.addEventListener('submit', handleChatSubmit);
+        
+        // Garante que o chat comece fechado
+        chatModal.classList.remove('open'); 
+        
+    </script>
+</body>
+</html>

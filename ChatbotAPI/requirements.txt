@@ -1,0 +1,10 @@
+Flask
+scikit-learn
+joblib
+pika # Para comunicação com RabbitMQ
+Flask-CORS
+Flask
+Flask-CORS # NOVO
+scikit-learn
+joblib
+pika

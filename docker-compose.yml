@@ -1,0 +1,46 @@
+services:
+  # --- SERVIÇO DE FILA DE MENSAGENS ---
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672" # Porta padrão para comunicação
+      - "15672:15672" # Porta para a interface de gerenciamento
+
+  # --- SEU GATEWAY API (Exemplo) ---
+  gatewayapi:
+    # A seção BUILD permanece, mas será ignorada no comando abaixo
+    build:
+      context: ./src/GatewayApi # Ajuste este caminho para o seu Gateway .NET
+      # Adicione um target de build se o Dockerfile do Gateway usa estágios de build (muito comum em projetos .NET)
+      # target: final
+      dockerfile: Dockerfile
+    container_name: gatewayapi
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      - rabbitmq
+      # Adicione seus outros microserviços de conta/trade aqui
+
+  # --- SERVIÇO DO CHATBOT (NOVO) ---
+  chatbotapi:
+    build:
+      context: ./ChatbotAPI # Indica o caminho da pasta onde estão o Dockerfile e o app.py
+      dockerfile: Dockerfile
+    container_name: chatbotapi
+    ports:
+      - "5000:5000" # Mapeia a porta 5000 do host para o contêiner (para testes)
+    environment:
+      # Passa o nome de host do RabbitMQ
+      RABBITMQ_HOST: rabbitmq
+      # Passa o nome de host do seu API Gateway (para consultar saldo/cotação)
+      GATEWAY_URL: http://gatewayapi:8080 
+    depends_on:
+      - rabbitmq # DEIXE APENAS O RABBITMQ
+
+# Definições de rede
+networks:
+  default:
+    name: ams_network
